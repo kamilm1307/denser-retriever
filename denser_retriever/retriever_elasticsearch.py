@@ -1,10 +1,9 @@
-import json
-import uuid
+from typing import Any, Dict, List, Optional
 
 from elasticsearch import Elasticsearch
-from elasticsearch.helpers import bulk
+from elasticsearch.helpers import BulkIndexError, bulk
 
-from denser_retriever.retriever import Retriever
+from denser_retriever.retriever import Passage, Retriever
 from denser_retriever.utils import get_logger
 
 logger = get_logger(__name__)
@@ -20,6 +19,7 @@ class RetrieverElasticSearch(Retriever):
 
     def __init__(self, index_name: str, config_path: str = "config.yaml"):
         super().__init__(index_name, config_path)
+        self.drop_old = self.settings.drop_old
         self.es = Elasticsearch(
             hosts=[self.settings.keyword.es_host],
             basic_auth=(self.settings.keyword.es_user, self.settings.keyword.es_passwd),
@@ -98,53 +98,59 @@ class RetrieverElasticSearch(Retriever):
             mappings["properties"][key] = self.field_types[key]
 
         # Create the index with the specified settings and mappings
-        if self.es.indices.exists(index=index_name):
-            self.es.indices.delete(index=index_name)
+        # if self.es.indices.exists(index=index_name):
+        # self.es.indices.delete(index=index_name)
         self.es.indices.create(index=index_name, mappings=mappings, settings=settings)
 
     def ingest(
-        self, doc_or_passage_file: str, batch_size: int, refresh_indices: bool = True
-    ):
-        self.create_index(self.index_name)
+        self,
+        passages: List[Passage],
+        ids: List[str],
+        batch_size: int,
+        refresh_indices: bool = True,
+    ) -> list[str]:
+        # Check if the index exists, if not create it
+        if not self.es.indices.exists(index=self.index_name):
+            self.create_index(self.index_name)
+        # Check if drop_old is True, if so, delete the index and recreate it
+        if self.drop_old:
+            self.es.indices.delete(index=self.index_name)
+            self.create_index(self.index_name)
+
         requests = []
         ids = []
         batch_count = 0
         record_id = 0
-        with open(doc_or_passage_file, "r") as jsonl_file:
-            for line in jsonl_file:
-                data = json.loads(line)
-                _id = str(uuid.uuid4())
-                request = {
-                    "_op_type": "index",
-                    "_index": self.index_name,
-                    "content": data.pop("text"),
-                    "title": data.get("title"),  # Index the title
-                    "_id": _id,
-                    "source": data.pop("source"),
-                    "pid": data.pop("pid"),
-                }
-                for filter in self.field_types.keys():
-                    v = data.get(filter).strip()
-                    if v:
-                        request[filter] = v
-                ids.append(_id)
-                requests.append(request)
+        for passage, _id in zip(passages, ids):
+            request = {
+                "_op_type": "index",
+                "_index": self.index_name,
+                "content": passage.text,
+                "title": passage.title,
+                "_id": _id,
+                "source": passage.source,
+                "pid": passage.pid,
+            }
+            for filter in self.field_types.keys():
+                v = getattr(passage, filter).strip()
+                if v:
+                    request[filter] = v
+            ids.append(_id)
+            requests.append(request)
 
-                batch_count += 1
-                record_id += 1
-                if batch_count >= batch_size:
-                    # Index the batch
-                    bulk(self.es, requests)
-                    logger.info(
-                        f"ES ingesting {doc_or_passage_file} record {record_id}"
-                    )
-                    batch_count = 0
-                    requests = []
+            batch_count += 1
+            record_id += 1
+            if batch_count >= batch_size:
+                # Index the batch
+                bulk(self.es, requests)
+                logger.info(f"ES ingesting {record_id}")
+                batch_count = 0
+                requests = []
 
         # Index any remaining documents
         if requests:
             bulk(self.es, requests)
-            logger.info(f"ES ingesting {doc_or_passage_file} record {record_id}")
+            logger.info(f"ES ingesting record {record_id}")
 
         if refresh_indices:
             self.es.indices.refresh(index=self.index_name)
@@ -261,3 +267,55 @@ class RetrieverElasticSearch(Retriever):
             categories = categories[:topk]
         res = [category["key"] for category in categories]
         return res
+
+    def delete(  # type: ignore[no-untyped-def]
+        self,
+        *,
+        ids: Optional[List[str]] = None,
+        query: Optional[Dict[str, Any]] = None,
+        refresh_indices: bool = True,
+        **delete_kwargs,
+    ) -> bool:
+        """Delete documents from the Elasticsearch index.
+
+        :param ids: List of IDs of documents to delete.
+        :param refresh_indices: Whether to refresh the index after deleting documents.
+            Defaults to True.
+
+        :return: True if deletion was successful.
+        """
+        if ids is not None and query is not None:
+            raise ValueError("one of ids or query must be specified")
+        elif ids is None and query is None:
+            raise ValueError("either specify ids or query")
+
+        try:
+            if ids:
+                body = [
+                    {"_op_type": "delete", "_index": self.index, "_id": _id}
+                    for _id in ids
+                ]
+                bulk(
+                    self.es,
+                    body,
+                    refresh=refresh_indices,
+                    ignore_status=404,
+                    **delete_kwargs,
+                )
+                logger.debug(f"Deleted {len(body)} texts from index")
+
+            else:
+                self.es.delete_by_query(
+                    index=self.index,
+                    query=query,
+                    refresh=refresh_indices,
+                    **delete_kwargs,
+                )
+
+        except BulkIndexError as e:
+            logger.error(f"Error deleting texts: {e}")
+            firstError = e.errors[0].get("index", {}).get("error", {})
+            logger.error(f"First error reason: {firstError.get('reason')}")
+            raise e
+
+        return True

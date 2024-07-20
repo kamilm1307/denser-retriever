@@ -304,6 +304,7 @@ def save_HF_corpus_as_denser_passages(corpus, output_file: str, max_doc_size):
 
 def save_HF_docs_as_denser_passages(texts, output_file: str, max_doc_size):
     out = open(output_file, "w")
+    passages = []
     for i, d in enumerate(texts):
         if max_doc_size > 0 and i >= max_doc_size:
             break
@@ -313,8 +314,10 @@ def save_HF_docs_as_denser_passages(texts, output_file: str, max_doc_size):
             "text": d.page_content,
             "pid": i,
         }
+        passages.append(data)
         json.dump(data, out, ensure_ascii=False)
         out.write("\n")
+    return passages
 
 
 def save_denser_queries(queries, output_file: str):

@@ -1,7 +1,9 @@
 import time
+from typing import List
+from uuid import uuid4
 
 from denser_retriever.reranker import Reranker
-from denser_retriever.retriever import Retriever
+from denser_retriever.retriever import Passage, Retriever
 from denser_retriever.retriever_elasticsearch import RetrieverElasticSearch
 from denser_retriever.retriever_milvus import RetrieverMilvus
 from denser_retriever.settings import RetrieverSettings
@@ -48,26 +50,32 @@ class RetrieverGeneral(Retriever):
             self.xgb_model = xgb.Booster()
             self.xgb_model.load_model(self.settings.model)
 
-    def ingest(self, doc_or_passage_file):
+    def ingest(self, passages: List[Passage]):
         # import pdb; pdb.set_trace()
+        # generate uuid list for each passage
+        ids = [uuid4().hex for _ in passages]
         if self.settings.keyword_weight > 0:
             self.retrieverElasticSearch.ingest(
-                doc_or_passage_file, self.settings.keyword.es_ingest_passage_bs
+                passages,
+                ids=ids,
+                batch_size=self.settings.keyword.es_ingest_passage_bs,
             )
             logger.info("Done building ES index")
         if self.settings.vector_weight > 0:
             self.retrieverMilvus.ingest(
-                doc_or_passage_file, self.settings.vector.vector_ingest_passage_bs
+                passages,
+                ids=ids,
+                batch_size=self.settings.vector.vector_ingest_passage_bs,
             )
             logger.info("Done building Vector DB index")
 
-    def retrieve(self, query, meta_data, query_id=None):
+    def retrieve(self, query: str, meta_data={}, query_id=None, k: int = 4):
         if self.settings.combine in ["linear", "rank"]:
             passages = self.retrieve_by_linear_or_rank(query, meta_data, query_id)
         else:  # model-based
             passages = self.retrieve_by_model(query, meta_data, query_id)
         docs = aggregate_passages(passages)
-        return passages, docs
+        return passages[:k], docs[:k]
 
     def retrieve_by_linear_or_rank(self, query, meta_data, query_id=None):
         passages = []
@@ -234,3 +242,9 @@ class RetrieverGeneral(Retriever):
 
     def get_field_categories(self, field, topk):
         return self.retrieverElasticSearch.get_categories(field, topk)
+
+    def delete(self, ids: list[str]):
+        if self.settings.keyword_weight > 0:
+            self.retrieverElasticSearch.delete(ids)
+        if self.settings.vector_weight > 0:
+            self.retrieverMilvus.delete(ids)
