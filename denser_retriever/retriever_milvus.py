@@ -2,6 +2,8 @@ import json
 import os
 import pickle
 from datetime import datetime
+from typing import List, Optional, Union
+from uuid import uuid4
 
 import numpy as np
 from pymilvus import (
@@ -9,12 +11,13 @@ from pymilvus import (
     CollectionSchema,
     DataType,
     FieldSchema,
+    MilvusException,
     connections,
     utility,
 )
 from sentence_transformers import SentenceTransformer
 
-from denser_retriever.retriever import Retriever
+from denser_retriever.retriever import Passage, Retriever
 from denser_retriever.settings import Vector
 from denser_retriever.utils import get_logger
 
@@ -32,28 +35,97 @@ class RetrieverMilvus(Retriever):
     def __init__(self, index_name: str, config_path: str = "config.yaml"):
         super().__init__(index_name, config_path)
         self.index_name = index_name
+        self.drop_old = self.settings.drop_old
         self.config = self.settings.vector
 
-        self.index = None
+        self.col = None
         self.source_max_length = 500
         self.title_max_length = 500
         self.text_max_length = 8000
         self.field_max_length = 500
         self.model = SentenceTransformer(self.config.emb_model, trust_remote_code=True)
 
-    def create_index(self):
-        connections.connect(
-            "default",
-            host=self.config.milvus_host,
-            port=self.config.milvus_port,
-            user=self.config.milvus_user,
-            password=self.config.milvus_passwd,
-        )
+        connection_args = {
+            "host": self.config.milvus_host,
+            "port": self.config.milvus_port,
+            "user": self.config.milvus_user,
+            "password": self.config.milvus_passwd,
+        }
+        self.alias = self._create_connection_alias(connection_args)
+        self.col: Optional[Collection] = None
 
-        if utility.has_collection(self.index_name):
-            logger.info(f"Remove existing Milvus index {self.index_name}")
-            utility.drop_collection(self.index_name)
+        # Grab the existing collection if it exists
+        if utility.has_collection(self.index_name, using=self.alias):
+            self.col = Collection(
+                self.index_name,
+                using=self.alias,
+            )
+        # If need to drop old, drop it
+        if self.drop_old and isinstance(self.col, Collection):
+            self.col.drop()
+            self.col = None
 
+        self._create_collection()
+
+    def _create_connection_alias(self, connection_args: dict) -> str:
+        """Create the connection to the Milvus server."""
+        from pymilvus import MilvusException, connections
+
+        # Grab the connection arguments that are used for checking existing connection
+        host: str = connection_args.get("host", None)
+        port: Union[str, int] = connection_args.get("port", None)
+        address: str = connection_args.get("address", None)
+        uri: str = connection_args.get("uri", None)
+        user = connection_args.get("user", None)
+
+        # Order of use is host/port, uri, address
+        if host is not None and port is not None:
+            given_address = str(host) + ":" + str(port)
+        elif uri is not None:
+            if uri.startswith("https://"):
+                given_address = uri.split("https://")[1]
+            elif uri.startswith("http://"):
+                given_address = uri.split("http://")[1]
+            else:
+                given_address = uri  # Milvus lite
+        elif address is not None:
+            given_address = address
+        else:
+            given_address = None
+            logger.debug("Missing standard address type for reuse attempt")
+
+        # User defaults to empty string when getting connection info
+        if user is not None:
+            tmp_user = user
+        else:
+            tmp_user = ""
+
+        # If a valid address was given, then check if a connection exists
+        if given_address is not None:
+            for con in connections.list_connections():
+                addr = connections.get_connection_addr(con[0])
+                if (
+                    con[1]
+                    and ("address" in addr)
+                    and (addr["address"] == given_address)
+                    and ("user" in addr)
+                    and (addr["user"] == tmp_user)
+                ):
+                    logger.debug("Using previous connection: %s", con[0])
+                    return con[0]
+
+        # Generate a new connection if one doesn't exist
+        alias = uuid4().hex
+        try:
+            connections.connect(alias=alias, **connection_args)
+            logger.debug("Created new connection using: %s", alias)
+            return alias
+        except MilvusException as e:
+            logger.error("Failed to create new connection using: %s", alias)
+            raise e
+
+    def _create_collection(self):
+        # Create general schema
         fields = [
             FieldSchema(
                 name="uid",
@@ -76,6 +148,7 @@ class RetrieverMilvus(Retriever):
                 name="embeddings", dtype=DataType.FLOAT_VECTOR, dim=self.config.emb_dims
             ),
         ]
+        # Create fields for each metadata field
         for key in self.field_types:
             internal_key = self.field_internal_names[key]
             # both category and date type (unix timestamp) use INT64 type
@@ -89,8 +162,20 @@ class RetrieverMilvus(Retriever):
             self.field_cat_to_id[key] = {}
             self.field_id_to_cat[key] = []
 
+        # Create schema for the collection
         schema = CollectionSchema(fields, "Milvus schema")
-        self.index = Collection(self.index_name, schema, consistency_level="Strong")
+        try:
+            self.col = Collection(
+                self.index_name,
+                schema,
+                consistency_level="Strong",
+                using=self.alias,
+            )
+        except MilvusException as e:
+            logger.error(
+                "Failed to create collection: %s error: %s", self.index_name, e
+            )
+            raise e
 
     def connect_index(self):
         connections.connect(
@@ -137,9 +222,9 @@ class RetrieverMilvus(Retriever):
             )
 
         schema = CollectionSchema(fields, "Milvus schema")
-        self.index = Collection(self.index_name, schema, consistency_level="Strong")
+        self.col = Collection(self.index_name, schema, consistency_level="Strong")
         logger.info("Loading milvus index")
-        self.index.load()
+        self.col.load()
 
         exp_dir = os.path.join(self.settings.output_prefix, f"exp_{self.index_name}")
         fields_file = os.path.join(exp_dir, "milvus_fields.json")
@@ -155,100 +240,117 @@ class RetrieverMilvus(Retriever):
             embeddings = self.model.encode(texts)
         return embeddings
 
-    def ingest(self, doc_or_passage_file, batch_size):
-        self.create_index()
+    def ingest(
+        self,
+        passages: List[Passage],
+        ids: List[str],
+        batch_size: int,
+    ) -> list[str]:
         batch = []
-        uids, sources, titles, texts, pids = [], [], [], [], []
-        fieldss = [[] for _ in self.field_types.keys()]
+        uid_list, sources, titles, texts, pid_list = [], [], [], [], []
+        fields_list = [[] for _ in self.field_types.keys()]
         record_id = 0
         failed_batches = []  # To store information about failed batches
         records_per_file = []
-        cache_file = doc_or_passage_file.replace(".jsonl", "")
-        with open(doc_or_passage_file, "r") as jsonl_file:
-            for line in jsonl_file:
-                data = json.loads(line)
-                batch.append(
-                    data["title"][: self.title_max_length - 10]
-                    + " "
-                    + data["text"][:2000]
-                )  # cap at 2000
-                # batch.append(data["title"] + " " + data["text"])
-                uids.append(record_id)
-                sources.append(data.get("source", "")[: self.source_max_length - 10])
-                titles.append(data.get("title", "")[: self.title_max_length - 10])
-                texts.append(
-                    data.get("text", "")[: self.text_max_length - 1000]
-                )  # buffer
-                pids.append(data.get("pid", -1))
+        for passage, _ in zip(passages, ids):
+            batch.append(
+                passage["title"][: self.title_max_length - 10]
+                + " "
+                + passage["text"][:2000]
+            )
+            uid_list.append(record_id)
+            sources.append(passage["source"][: self.source_max_length - 10])
+            titles.append(passage["title"][: self.title_max_length - 10])
+            texts.append(passage["text"][: self.text_max_length - 1000])  # buffer
+            pid_list.append(passage["pid"])
 
-                for i, field in enumerate(self.field_types.keys()):
-                    category_or_date_str = data.get(field).strip()
-                    if category_or_date_str:
-                        type = self.field_types[field]["type"]
-                        if type == "date":
-                            date_obj = datetime.strptime(
-                                category_or_date_str, "%Y-%m-%d"
+            for i, field in enumerate(self.field_types.keys()):
+                category_or_date_str = getattr(passage, field).strip()
+                if category_or_date_str:
+                    type = self.field_types[field]["type"]
+                    if type == "date":
+                        date_obj = datetime.strptime(category_or_date_str, "%Y-%m-%d")
+                        unix_time = int(date_obj.timestamp())
+                        fields_list[i].append(unix_time)
+                    else:
+                        if category_or_date_str not in self.field_cat_to_id[field]:
+                            self.field_cat_to_id[field][category_or_date_str] = len(
+                                self.field_cat_to_id[field]
                             )
-                            unix_time = int(date_obj.timestamp())
-                            fieldss[i].append(unix_time)
-                        else:  # categorical
-                            if category_or_date_str not in self.field_cat_to_id[field]:
-                                self.field_cat_to_id[field][category_or_date_str] = len(
-                                    self.field_cat_to_id[field]
-                                )
-                                self.field_id_to_cat[field].append(category_or_date_str)
-                            fieldss[i].append(
-                                self.field_cat_to_id[field][category_or_date_str]
-                            )
-                    else:  # missing category value
-                        fieldss[i].append(-1)
-                record_id += 1
-                if len(batch) == batch_size:
-                    embeddings = self.generate_embedding(batch)
-                    record = [uids, sources, titles, texts, pids, np.array(embeddings)]
-                    record += fieldss
-                    try:
-                        self.index.insert(record)
-                    except Exception as e:
-                        logger.error(
-                            f"Milvus index insert error at record {record_id} - {e}"
+                            self.field_id_to_cat[field].append(category_or_date_str)
+                        fields_list[i].append(
+                            self.field_cat_to_id[field][category_or_date_str]
                         )
+                else:
+                    fields_list[i].append(-1)
 
-                    records_per_file.append(record)
-                    if len(records_per_file) == 1000:
-                        with open(f"{cache_file}_{record_id}.pkl", "wb") as file:
-                            pickle.dump(records_per_file, file)
-                        records_per_file = []
-                    self.index.flush()
-                    logger.info(
-                        f"Milvus vector DB ingesting {doc_or_passage_file} record {record_id}"
-                    )
-
-                    batch = []
-                    uids, sources, titles, texts, pids = [], [], [], [], []
-                    fieldss = [[] for _ in self.field_types.keys()]
-
-            if len(batch) > 0:
+            record_id += 1
+            if len(batch) == batch_size:
                 embeddings = self.generate_embedding(batch)
-                record = [uids, sources, titles, texts, pids, np.array(embeddings)]
-                record += fieldss
+                record = [
+                    uid_list,
+                    sources,
+                    titles,
+                    texts,
+                    pid_list,
+                    np.array(embeddings),
+                ]
+                record += fields_list
                 try:
-                    self.index.insert(record)
+                    self.col.insert(record)
                 except Exception as e:
                     logger.error(
                         f"Milvus index insert error at record {record_id} - {e}"
                     )
+                    failed_batches.append(
+                        {
+                            "sources": sources,
+                            "pids": pid_list,
+                            "batch": batch,
+                        }
+                    )
+
                 records_per_file.append(record)
-                with open(f"{cache_file}_{record_id}.pkl", "wb") as file:
-                    pickle.dump(records_per_file, file)
-                self.index.flush()
-                logger.info(
-                    f"Milvus vector DB ingesting {doc_or_passage_file} record {record_id}"
+                if len(records_per_file) == 1000:
+                    with open(f"{self.index_name}_{record_id}.pkl", "wb") as file:
+                        pickle.dump(records_per_file, file)
+                    records_per_file = []
+                self.col.flush()
+                logger.info(f"Milvus vector DB ingesting {record_id}")
+
+                batch = []
+                uid_list, sources, titles, texts, pid_list = [], [], [], [], []
+                fields_list = [[] for _ in self.field_types.keys()]
+
+        if len(batch) > 0:
+            embeddings = self.generate_embedding(batch)
+            record = [
+                uid_list,
+                sources,
+                titles,
+                texts,
+                pid_list,
+                np.array(embeddings),
+            ]
+            record += fields_list
+            try:
+                self.col.insert(record)
+            except Exception as e:
+                logger.error(f"Milvus index insert error at record {record_id} - {e}")
+                failed_batches.append(
+                    {
+                        "sources": sources,
+                        "pids": pid_list,
+                        "batch": batch,
+                    }
                 )
+            with open(f"{self.index_name}_{record_id}.pkl", "wb") as file:
+                pickle.dump(records_per_file, file)
+            self.col.flush()
+            logger.info(f"Milvus vector DB ingesting {record_id}")
 
         # Save failed batches to a JSONL file
-        assert ".jsonl" in doc_or_passage_file
-        failure_output_file = doc_or_passage_file.replace(".jsonl", ".failed")
+        failure_output_file = f"{self.index_name}.failed"
         with open(failure_output_file, "w") as fout:
             for failed_batch in failed_batches:
                 for source, pid, record in zip(
@@ -257,19 +359,13 @@ class RetrieverMilvus(Retriever):
                     json.dump({"source": source, "pid": pid, "data": record}, fout)
                     fout.write("\n")
 
-        # index = {
-        #     "index_type": "IVF_FLAT",
-        #     "metric_type": "L2",
-        #     "params": {"nlist": 128},
-        # }
         index = {
             "index_type": "FLAT",
             "metric_type": "L2",
         }
 
-        # import pdb; pdb.set_trace()
-        self.index.create_index("embeddings", index)
-        self.index.load()
+        self.col.create_index("embeddings", index)
+        self.col.load()
         exp_dir = os.path.join(self.settings.output_prefix, f"exp_{self.index_name}")
         if not os.path.exists(exp_dir):
             os.makedirs(exp_dir)
@@ -280,10 +376,12 @@ class RetrieverMilvus(Retriever):
                 file,
                 ensure_ascii=False,
                 indent=4,
-            )  # 'indent' for pretty printing
+            )
+
+        return ids
 
     def retrieve(self, query_text, meta_data, query_id=None):
-        if not self.index:
+        if not self.col:
             self.connect_index()
         embeddings = self.generate_embedding([query_text], query=True)
         query_embedding = np.array(embeddings)
@@ -323,7 +421,7 @@ class RetrieverMilvus(Retriever):
             "metric_type": "L2",
             "params": {"nprobe": 10},
         }
-        result = self.index.search(
+        result = self.col.search(
             query_embedding,
             "embeddings",
             search_params,
@@ -359,3 +457,30 @@ class RetrieverMilvus(Retriever):
             passages.append(passage)
 
         return passages
+
+    def delete(  # type: ignore[no-untyped-def]
+        self,
+        ids: Optional[List[str]] = None,
+        expr: Optional[str] = None,
+        **kwargs: str,
+    ):
+        """Delete by vector ID or boolean expression.
+        Refer to [Milvus documentation](https://milvus.io/docs/delete_data.md)
+        for notes and examples of expressions.
+
+        Args:
+            ids: List of ids to delete.
+            expr: Boolean expression that specifies the entities to delete.
+            kwargs: Other parameters in Milvus delete api.
+        """
+        if isinstance(ids, list) and len(ids) > 0:
+            if expr is not None:
+                logger.warning(
+                    "Both ids and expr are provided. " "Ignore expr and delete by ids."
+                )
+            expr = f"{self._primary_field} in {ids}"
+        else:
+            assert isinstance(
+                expr, str
+            ), "Either ids list or expr string must be provided."
+        return self.col.delete(expr=expr, **kwargs)

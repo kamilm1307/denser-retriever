@@ -1,8 +1,12 @@
 import os
 from abc import ABC, abstractmethod
+from typing import Any, List
 
 
 from denser_retriever.settings import RetrieverSettings
+
+
+Passage = Any
 
 
 class Retriever(ABC):
@@ -36,9 +40,9 @@ class Retriever(ABC):
             os.makedirs(self.exp_dir)
 
     @abstractmethod
-    def ingest(self, data):
+    def ingest(self, passages: List[Passage], **kwargs: Any):
         pass
 
     @abstractmethod
-    def retrieve(self, query, topk):
+    def retrieve(self, query: str, k: int, **kwargs: Any):
         return None

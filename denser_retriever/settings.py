@@ -21,6 +21,7 @@ class RetrieverSettings(BaseModel):
     vector: Vector
     rerank: Rerank
     fields: list = []
+    drop_old: bool = False
 
     @staticmethod
     def from_yaml(yaml_file: str = "config.yaml") -> RetrieverSettings:
