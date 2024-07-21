@@ -190,7 +190,7 @@ class RetrieverElasticSearch(Retriever):
                                     "gte": category_or_date[0],
                                     "lte": category_or_date[1]
                                     if len(category_or_date) > 1
-                                    else category_or_date[0],
+                                    else category_or_date[0],  # type: ignore
                                 }
                             }
                         }
@@ -305,7 +305,7 @@ class RetrieverElasticSearch(Retriever):
 
             else:
                 self.es.delete_by_query(
-                    index=self.index,
+                    index=self.index_name,
                     query=query,
                     refresh=refresh_indices,
                     **delete_kwargs,
@@ -318,3 +318,7 @@ class RetrieverElasticSearch(Retriever):
             raise e
 
         return True
+
+    def delete_by_source(self, source: str, refresh_indices: bool = True):
+        query = {"query": {"term": {"source": source}}}
+        return self.delete(query=query, refresh_indices=refresh_indices)

@@ -250,3 +250,9 @@ class RetrieverGeneral(Retriever):
             self.retrieverElasticSearch.delete(ids=ids)
         if self.settings.vector_weight > 0:
             self.retrieverMilvus.delete(ids=ids)
+
+    def delete_by_source(self, source: str):
+        if self.settings.keyword_weight > 0:
+            self.retrieverElasticSearch.delete_by_source(source)
+        if self.settings.vector_weight > 0:
+            self.retrieverMilvus.delete_by_source(source)

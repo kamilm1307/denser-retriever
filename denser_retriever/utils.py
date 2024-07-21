@@ -196,13 +196,13 @@ def top_k_accuracy(
     return top_k_acc
 
 
-loggers = {}
+loggers: Dict[str, logging.Logger] = {}
 
 
-def get_logger(name="default"):
+def get_logger(name: str = "default") -> logging.Logger:
     global loggers
-    if loggers.get(name):
-        return loggers.get(name)
+    if name in loggers:
+        return loggers[name]
     else:
         logger = logging.getLogger(name)
         logger.propagate = False

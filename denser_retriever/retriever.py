@@ -46,3 +46,11 @@ class Retriever(ABC):
     @abstractmethod
     def retrieve(self, query: str, k: int, **kwargs: Any):
         return None
+
+    @abstractmethod
+    def delete(self, ids: List[str], **kwargs: Any):
+        pass
+
+    @abstractmethod
+    def delete_by_source(self, source: str, **kwargs: Any):
+        pass

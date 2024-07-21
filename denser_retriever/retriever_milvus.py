@@ -482,3 +482,6 @@ class RetrieverMilvus(Retriever):
                 expr, str
             ), "Either ids list or expr string must be provided."
         return self.col.delete(expr=expr, **kwargs)
+
+    def delete_by_source(self, source: str, **kwargs: str):
+        return self.delete(expr=f'source=="{source}"', **kwargs)
