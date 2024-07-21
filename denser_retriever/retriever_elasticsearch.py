@@ -118,18 +118,17 @@ class RetrieverElasticSearch(Retriever):
             self.create_index(self.index_name)
 
         requests = []
-        ids = []
         batch_count = 0
         record_id = 0
         for passage, _id in zip(passages, ids):
             request = {
                 "_op_type": "index",
                 "_index": self.index_name,
-                "content": passage.text,
-                "title": passage.title,
+                "content": passage.get("text", ""),
+                "title": passage.get("title", ""),
                 "_id": _id,
-                "source": passage.source,
-                "pid": passage.pid,
+                "source": passage.get("source", ""),
+                "pid": passage.get("pid", -1),
             }
             for filter in self.field_types.keys():
                 v = getattr(passage, filter).strip()
@@ -292,7 +291,7 @@ class RetrieverElasticSearch(Retriever):
         try:
             if ids:
                 body = [
-                    {"_op_type": "delete", "_index": self.index, "_id": _id}
+                    {"_op_type": "delete", "_index": self.index_name, "_id": _id}
                     for _id in ids
                 ]
                 bulk(

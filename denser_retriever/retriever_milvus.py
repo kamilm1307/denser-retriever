@@ -129,7 +129,7 @@ class RetrieverMilvus(Retriever):
         fields = [
             FieldSchema(
                 name="uid",
-                dtype=DataType.INT64,
+                dtype=DataType.VARCHAR,
                 is_primary=True,
                 auto_id=False,
                 max_length=100,
@@ -190,7 +190,7 @@ class RetrieverMilvus(Retriever):
         fields = [
             FieldSchema(
                 name="uid",
-                dtype=DataType.INT64,
+                dtype=DataType.VARCHAR,
                 is_primary=True,
                 auto_id=False,
                 max_length=100,
@@ -249,20 +249,21 @@ class RetrieverMilvus(Retriever):
         batch = []
         uid_list, sources, titles, texts, pid_list = [], [], [], [], []
         fields_list = [[] for _ in self.field_types.keys()]
-        record_id = 0
         failed_batches = []  # To store information about failed batches
         records_per_file = []
-        for passage, _ in zip(passages, ids):
+        for passage, id in zip(passages, ids):
             batch.append(
                 passage["title"][: self.title_max_length - 10]
                 + " "
                 + passage["text"][:2000]
             )
-            uid_list.append(record_id)
-            sources.append(passage["source"][: self.source_max_length - 10])
-            titles.append(passage["title"][: self.title_max_length - 10])
-            texts.append(passage["text"][: self.text_max_length - 1000])  # buffer
-            pid_list.append(passage["pid"])
+            uid_list.append(id)
+            sources.append(passage.get("source", "")[: self.source_max_length - 10])
+            titles.append(passage.get("title", "")[: self.title_max_length - 10])
+            texts.append(
+                passage.get("text", "")[: self.text_max_length - 1000]
+            )  # buffer
+            pid_list.append(passage.get("pid", -1))
 
             for i, field in enumerate(self.field_types.keys()):
                 category_or_date_str = getattr(passage, field).strip()
@@ -284,7 +285,6 @@ class RetrieverMilvus(Retriever):
                 else:
                     fields_list[i].append(-1)
 
-            record_id += 1
             if len(batch) == batch_size:
                 embeddings = self.generate_embedding(batch)
                 record = [
@@ -299,9 +299,7 @@ class RetrieverMilvus(Retriever):
                 try:
                     self.col.insert(record)
                 except Exception as e:
-                    logger.error(
-                        f"Milvus index insert error at record {record_id} - {e}"
-                    )
+                    logger.error(f"Milvus index insert error at record {id} - {e}")
                     failed_batches.append(
                         {
                             "sources": sources,
@@ -312,11 +310,11 @@ class RetrieverMilvus(Retriever):
 
                 records_per_file.append(record)
                 if len(records_per_file) == 1000:
-                    with open(f"{self.index_name}_{record_id}.pkl", "wb") as file:
+                    with open(f"{self.index_name}_{id}.pkl", "wb") as file:
                         pickle.dump(records_per_file, file)
                     records_per_file = []
                 self.col.flush()
-                logger.info(f"Milvus vector DB ingesting {record_id}")
+                logger.info(f"Milvus vector DB ingesting {id}")
 
                 batch = []
                 uid_list, sources, titles, texts, pid_list = [], [], [], [], []
@@ -336,7 +334,7 @@ class RetrieverMilvus(Retriever):
             try:
                 self.col.insert(record)
             except Exception as e:
-                logger.error(f"Milvus index insert error at record {record_id} - {e}")
+                logger.error(f"Milvus index insert error at record {id} - {e}")
                 failed_batches.append(
                     {
                         "sources": sources,
@@ -344,10 +342,10 @@ class RetrieverMilvus(Retriever):
                         "batch": batch,
                     }
                 )
-            with open(f"{self.index_name}_{record_id}.pkl", "wb") as file:
+            with open(f"{self.index_name}_{id}.pkl", "wb") as file:
                 pickle.dump(records_per_file, file)
             self.col.flush()
-            logger.info(f"Milvus vector DB ingesting {record_id}")
+            logger.info(f"Milvus vector DB ingesting {id}")
 
         # Save failed batches to a JSONL file
         failure_output_file = f"{self.index_name}.failed"
@@ -478,7 +476,7 @@ class RetrieverMilvus(Retriever):
                 logger.warning(
                     "Both ids and expr are provided. " "Ignore expr and delete by ids."
                 )
-            expr = f"{self._primary_field} in {ids}"
+            expr = f"uid in {ids}"
         else:
             assert isinstance(
                 expr, str

@@ -4,9 +4,10 @@ import logging
 import sys
 from typing import Dict, List, Tuple
 
+import numpy as np
 import pytrec_eval
 import torch
-import numpy as np
+from langchain_core.documents import Document
 from scipy.sparse import csr_matrix
 
 
@@ -300,6 +301,19 @@ def save_HF_corpus_as_denser_passages(corpus, output_file: str, max_doc_size):
         data = {"source": d["id"], "title": d["title"], "text": d["text"], "pid": -1}
         json.dump(data, out, ensure_ascii=False)
         out.write("\n")
+
+
+def texts_to_passages(texts: List[Document]):
+    passages = []
+    for i, d in enumerate(texts):
+        data = {
+            "source": d.metadata["source"],
+            "title": d.metadata.get("title", ""),
+            "text": d.page_content,
+            "pid": i,
+        }
+        passages.append(data)
+    return passages
 
 
 def save_HF_docs_as_denser_passages(texts, output_file: str, max_doc_size):

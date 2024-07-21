@@ -69,6 +69,8 @@ class RetrieverGeneral(Retriever):
             )
             logger.info("Done building Vector DB index")
 
+        return ids
+
     def retrieve(self, query: str, meta_data={}, query_id=None, k: int = 4):
         if self.settings.combine in ["linear", "rank"]:
             passages = self.retrieve_by_linear_or_rank(query, meta_data, query_id)
@@ -245,6 +247,6 @@ class RetrieverGeneral(Retriever):
 
     def delete(self, ids: list[str]):
         if self.settings.keyword_weight > 0:
-            self.retrieverElasticSearch.delete(ids)
+            self.retrieverElasticSearch.delete(ids=ids)
         if self.settings.vector_weight > 0:
-            self.retrieverMilvus.delete(ids)
+            self.retrieverMilvus.delete(ids=ids)
