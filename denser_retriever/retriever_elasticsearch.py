@@ -51,7 +51,7 @@ class RetrieverElasticSearch(Retriever):
                         "type": "text",
                     },
                     "source": {
-                        "type": "text",
+                        "type": "keyword",
                     },
                     "pid": {
                         "type": "text",
