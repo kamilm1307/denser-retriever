@@ -208,6 +208,7 @@ class RetrieverElasticSearch(Retriever):
         for id in range(topk_used):
             _source = res["hits"]["hits"][id]["_source"]
             passage = {
+                "id": res["hits"]["hits"][id]["_id"],
                 "source": _source["source"],
                 "text": _source["content"],
                 "title": _source["title"],

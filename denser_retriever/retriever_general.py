@@ -156,6 +156,8 @@ class RetrieverGeneral(Retriever):
                 combined_passages.append(passage)
                 seen_ids.add(passage["source"])
 
+        logger.info(passages_keyword)
+
         uid_to_passages_1, uid_to_scores_1, uid_to_ranks_1 = build_dicts(
             passages_keyword
         )

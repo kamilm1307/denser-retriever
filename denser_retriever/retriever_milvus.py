@@ -425,7 +425,7 @@ class RetrieverMilvus(Retriever):
             search_params,
             limit=self.config.topk,
             expr=expr_str,
-            output_fields=["source", "title", "text", "pid"]
+            output_fields=["source", "title", "text", "pid", "uid"]
             + list(self.field_internal_names.values()),
         )
 
@@ -435,6 +435,7 @@ class RetrieverMilvus(Retriever):
             assert len(result) == 1
             hit = result[0][id]
             passage = {
+                "id": hit.entity.uid,
                 "source": hit.entity.source,
                 "text": hit.entity.text,
                 "title": hit.entity.title,

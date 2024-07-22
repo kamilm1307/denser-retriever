@@ -403,11 +403,11 @@ def aggregate_passages(passages: List[Dict[str, str]]):
 def build_dicts(passages):
     uid_to_passages, uid_to_scores, uid_to_ranks = {}, {}, {}
     for i, passage in enumerate(passages):
-        source, id = passage["source"], passage.get("pid", -1)
-        if id == -1:
+        source, id = passage["source"], passage.get("id")
+        if id is None:
             uid_str = source
         else:
-            uid_str = f"{source}-{id}"
+            uid_str = id
         assert uid_str not in uid_to_passages
         assert uid_str not in uid_to_scores
         assert uid_str not in uid_to_ranks
