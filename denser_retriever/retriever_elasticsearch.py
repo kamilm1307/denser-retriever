@@ -307,7 +307,7 @@ class RetrieverElasticSearch(Retriever):
             else:
                 self.es.delete_by_query(
                     index=self.index_name,
-                    query=query,
+                    body=query,
                     refresh=refresh_indices,
                     **delete_kwargs,
                 )
