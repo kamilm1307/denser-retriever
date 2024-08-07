@@ -8,7 +8,7 @@ interface Param {
   slug: string[];
 }
 
-export const dynamicParams = false;
+// export const dynamicParams = false;
 
 export default async function Page({ params }: { params: Param }) {
   const page = getPage(params.slug);
