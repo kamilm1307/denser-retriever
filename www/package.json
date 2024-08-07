@@ -49,12 +49,5 @@
   },
   "commitlint": {
     "extends": ["@commitlint/config-conventional"]
-  },
-  "simple-git-hooks": {
-    "commit-msg": "npx commitlint --edit",
-    "pre-commit": "npx lint-staged"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,css,json,html}": ["biome format --write"]
   }
 }
