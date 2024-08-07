@@ -42,7 +42,7 @@ if (
   !g.__NEXT_DOCS_INDEX_UPDATED
 ) {
   const mapPath = path.resolve("./.next/_map_indexes.json");
-  const indexes: Index[] = utils.files.flatMap((file) => {
+  const indexes: any[] = utils.files.flatMap((file: any) => {
     if (file.type !== "page") return [];
 
     return {
