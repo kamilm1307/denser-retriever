@@ -1,8 +1,8 @@
 import { notFound, permanentRedirect } from "next/navigation";
-import { ArrowSquareOut } from "@phosphor-icons/react/dist/ssr";
 import { getPage, getPages } from "@/app/source";
 import { DocsPage, DocsBody } from "fumadocs-ui/page";
 import type { Metadata } from "next";
+import { ExternalLink } from "lucide-react";
 
 interface Param {
   slug: string[];
@@ -34,7 +34,7 @@ export default async function Page({ params }: { params: Param }) {
             rel="noreferrer noopener"
             className="flex items-baseline text-xs text-muted-foreground hover:text-foreground"
           >
-            Edit on Github <ArrowSquareOut className="ml-1 size-3" />
+            Edit on Github <ExternalLink className="ml-1 size-3" />
           </a>
         ),
       }}
