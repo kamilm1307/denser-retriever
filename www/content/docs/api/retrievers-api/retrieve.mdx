@@ -1,0 +1,174 @@
+---
+title: retrieve
+full: true
+---
+
+import { Root, API, APIInfo, APIExample, Responses, Response, ResponseTypes, ExampleResponse, Property, ObjectCollapsible, Requests, Request, APIPlayground } from "fumadocs-openapi/ui";
+
+<Root baseUrl={"https://retriever.denser.ai/api"}>
+
+<API>
+
+<APIInfo method={"POST"} route={"/retrievers/retrieve"}>
+
+## Retrieve
+
+Send a query to the retriever to retrieve passages.
+
+<APIPlayground method={"POST"} route={"/retrievers/retrieve"} bodyType={"json"} path={[]} query={[]} header={[{"name":"Authorization","value":"Bearer dr_-UcyDSXUzXvXt3fw-n8HB9Mf"}]} body={{"type":"object","isRequired":true,"description":"Send a query to the retriever to retrieve passages.","properties":{"query":{"type":"ref","isRequired":true,"schema":"0"},"k":{"type":"ref","isRequired":false,"schema":"1"},"id":{"type":"ref","isRequired":true,"schema":"2"}}}} schemas={{"0":{"type":"string","defaultValue":"Is denser free?","isRequired":false,"description":""},"1":{"type":"number","defaultValue":"4","isRequired":true,"description":""},"2":{"type":"string","defaultValue":"clzm3uwy000046t97v6iwyg8w", "isRequired":true,"description":""}}}>
+
+</APIPlayground>
+
+### Request Body
+
+<Property name={"query"} type={"string"} required={true} deprecated={undefined}>
+
+The query to send to the retriever.
+
+<span>Example: `"Is denser free?"`</span>
+
+</Property>
+
+<Property name={"id"} type={"string"} required={true} deprecated={undefined}>
+
+Identifier for a retriever.
+
+<span>Example: `"clz957t700007xhx72s0aieda"`</span>
+
+<span>Format: `"string"`</span>
+
+</Property>
+
+<Property name={"k"} type={"string"} required={true} deprecated={undefined}>
+
+Retrieve top `k` passages.
+
+<span>Example: `"4"`</span>
+
+<span>Format: `"int"`</span>
+
+</Property>
+
+| Status code | Description |
+| ----------- | ----------- |
+| `200` | Success |
+| `401` | Bad request |
+| `500` | Internal server error |
+
+</APIInfo>
+
+<APIExample>
+
+<Requests items={["cURL","JavaScript"]}>
+
+<Request value={"cURL"}>
+
+```bash
+curl --request POST \
+  --url https://retriever.denser.ai/api/retrievers/retrieve \
+  --header 'Authorization: Bearer dr_-UcyDSXUzXvXt3fw-nxxxxx' \
+  --header 'content-type: application/json' \
+  --data '{
+  "query": "is denser free?",
+  "id": "clzm3uwy000046t97v6ixxxxx",
+  "k": 4
+}'
+```
+
+</Request>
+
+<Request value={"JavaScript"}>
+
+```js
+fetch("https://denser.ai/api/query", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer dr_-UcyDSXUzXvXt3fw-n8HB9Mf",
+  },
+  body: JSON.stringify({
+    query: "Is denser free?",
+    id: "clzm3uwy000046t97v6iwyg8w",
+    k: 4
+  })
+});
+```
+
+</Request>
+
+</Requests>
+
+<Responses items={["200", "401", "500"]}>
+
+<Response value={"200"}>
+
+A successful response will return the passages retrieved by the retriever.
+
+<ResponseTypes>
+
+<ExampleResponse>
+
+```json
+{
+  "passages": [
+    {
+      "id": "f38d75f854e74043b77e6118b442dbb0",
+      "source": "blob",
+      "text": "How can I deploy Denser chatbots?\nDeploying Denser chatbots is easy and programming-free. All you need to do is provide your website URL or files to build and deploy the chatbot.",
+      "title": "",
+      "pid": "NvjB8A91r4VGCt-L2RyJw",
+      "score": 1.8285361528396606
+    },
+    {
+      "id": "b8ba78778bd640e99fca6e473143ca30",
+      "source": "https://denser.ai/blog/tidio-vs-zendesk/",
+      "text": "Denser Pricing Plans\nDenser.ai offers better pricing plans to meet different business needs, ranging from startups to large enterprises.\nThe Free Plan is great for startups wanting to try basic features without any cost. The Starter Plan costs $19 per month and is ideal for individual users or small startups needing essential features. The Standard Plan, at $89 per month, is designed for small teams looking for more advanced features.\nThe Business Plan, priced at $399 per month, is for larger businesses that require a comprehensive feature set.\nAnalyzing the Cost-Benefit\nWhen comparing Tidio's and Zendesk's pricing plans, it's important to consider the value each tool brings at different price points.\nSmall Businesses and Startups\nTidio's Free Plan is great for businesses just starting since it's free, but it may lack the advanced features needed as businesses grow. Zendesk offers more comprehensive features but at a higher cost, which might not be affordable for smaller teams.",
+      "title": "",
+      "pid": "-i2WImgSHA7EfD0_KsXJa",
+      "score": -2.8371999263763428
+    },
+    {
+      "id": "a9c65096da3a4398803f2d44f21b2f96",
+      "source": "https://denser.ai/blog/how-to-train-chatgpt-on-your-own-data/",
+      "text": "Below are the easy steps to integrating your Denser AI chatbot onto your own data. We'll take a look at website integration and file/document integration. Even if you have no prior coding knowledge and experience, following these easy steps can help:\nStep 1: Sign Up For Denser.ai\nCreate a chatbot that you can input your own data and knowledge base into. Communicate with this AI chatbot about your custom data, too.\n\nSign up for Denser.ai. Start a free account, you'll be granted 1 Denserbot, and a limited number of free queries per month.\nThe freemium version is the best chance to use the application at no cost. Or book a demo with a team member.\nStep 2: Create a New Chatbot\n\nStep 3: Choose Files\n\nStep 4: Upload Your File\n\nUpload your file to Denser.ai, and hit \"Build Now\" to begin the Denser Bot creation on the custom data that you uploaded. This can also be considered training data.\nStep 5: Start Using Your Knowledgeable Denser Bot",
+      "title": "",
+      "pid": "WTk8c8jHWbiO5oCrA8l_s",
+      "score": -2.8466386795043945
+    },
+    {
+      "id": "7b737b25e0d2426db6aa7be983e24dbc",
+      "source": "https://denser.ai/blog/web-gpts/",
+      "text": "https://openai.com/: 5a3e28e4-3d75-475f-8adb-f9fd0badb211\n\nwhat is sora?\nwho are the founders of openai?\nwhat is the pricing for gpt-4?\n\n\nhttps://denser.ai/: 46711c45-8726-4e1e-8c33-c63de5b9b66d\n\nWhat use cases does Denser support?\nIs denserbot free?",
+      "title": "",
+      "pid": "2GRCGvlWg7V377_HIBHkz",
+      "score": -2.8466386795043945
+    }
+  ]
+}
+```
+
+</ExampleResponse>
+
+</ResponseTypes>
+
+</Response>
+
+<Response value={"401"}>
+
+A bad request with invalid api key will return an error message.
+
+</Response>
+
+<Response value={"500"}>
+
+Internal server error.
+
+</Response>
+
+</Responses>
+
+</APIExample>
+
+</API>
+
+</Root>

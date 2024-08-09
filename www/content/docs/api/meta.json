@@ -5,7 +5,6 @@
     "---Get Started---",
     "index",
     "---API---",
-    "reference-api/reference-crawl",
-    "reference-api/reference-retriever"
+    "retrievers-api/retrieve"
   ]
 }
