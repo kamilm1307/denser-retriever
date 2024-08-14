@@ -143,7 +143,7 @@ class RetrieverMilvus(Retriever):
             FieldSchema(
                 name="text", dtype=DataType.VARCHAR, max_length=self.text_max_length
             ),
-            FieldSchema(name="pid", dtype=DataType.INT64),
+            FieldSchema(name="pid", dtype=DataType.VARCHAR),
             FieldSchema(
                 name="embeddings", dtype=DataType.FLOAT_VECTOR, dim=self.config.emb_dims
             ),
@@ -299,7 +299,7 @@ class RetrieverMilvus(Retriever):
                 try:
                     self.col.insert(record)
                 except Exception as e:
-                    logger.error(f"Milvus index insert error at record {id} - {e}")
+                    logger.error(f"Milvus index insert error at record {passage["pid"]} - {e}")
                     failed_batches.append(
                         {
                             "sources": sources,
