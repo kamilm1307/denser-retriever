@@ -143,7 +143,7 @@ class RetrieverMilvus(Retriever):
             FieldSchema(
                 name="text", dtype=DataType.VARCHAR, max_length=self.text_max_length
             ),
-            FieldSchema(name="pid", dtype=DataType.VARCHAR),
+            FieldSchema(name="pid", dtype=DataType.VARCHAR, max_length=100),
             FieldSchema(
                 name="embeddings", dtype=DataType.FLOAT_VECTOR, dim=self.config.emb_dims
             ),
