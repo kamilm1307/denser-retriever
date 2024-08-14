@@ -177,13 +177,13 @@ class RetrieverGeneral(Retriever):
             features.append(0)  # placeholder label
             rank = uid_to_ranks_1.get(pid, -1)
             features.append(rank)  # 1
-            features.append(uid_to_scores_1.get(pid, -1000))  # 2
+            features.append(uid_to_scores_1.get(pid, "-1000"))  # 2
             miss = 1 if rank == -1 else 0
             features.append(miss)  # 3
 
             rank = uid_to_ranks_2.get(pid, -1)
             features.append(rank)  # 4
-            features.append(uid_to_scores_2.get(pid, -1000))  # 5
+            features.append(uid_to_scores_2.get(pid, "-1000"))  # 5
             miss = 1 if rank == -1 else 0
             features.append(miss)  # 6
 

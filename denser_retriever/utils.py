@@ -298,7 +298,7 @@ def save_HF_corpus_as_denser_passages(corpus, output_file: str, max_doc_size):
     for i, d in enumerate(corpus):
         if max_doc_size > 0 and i >= max_doc_size:
             break
-        data = {"source": d["id"], "title": d["title"], "text": d["text"], "pid": -1}
+        data = {"source": d["id"], "title": d["title"], "text": d["text"], "pid": "-1"}
         json.dump(data, out, ensure_ascii=False)
         out.write("\n")
 
@@ -370,8 +370,8 @@ def dump_passages(passages: List[Dict[str, str]], output_file: str):
 def passages_to_dict(passages: List[Dict[str, str]], doc_task, score_name="score"):
     res = {}
     for passage in passages:
-        source, pid = passage["source"], passage.get("pid", -1)
-        if doc_task or pid == -1:
+        source, pid = passage["source"], passage.get("pid", "-1")
+        if doc_task or pid == "-1":
             uid_str = source
         else:
             uid_str = f"{source}-{pid}"

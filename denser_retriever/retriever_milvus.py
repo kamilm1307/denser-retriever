@@ -263,7 +263,7 @@ class RetrieverMilvus(Retriever):
             texts.append(
                 passage.get("text", "")[: self.text_max_length - 1000]
             )  # buffer
-            pid_list.append(passage.get("pid", -1))
+            pid_list.append(passage.get("pid", "-1"))
 
             for i, field in enumerate(self.field_types.keys()):
                 category_or_date_str = getattr(passage, field).strip()

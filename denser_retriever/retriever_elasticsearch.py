@@ -128,7 +128,7 @@ class RetrieverElasticSearch(Retriever):
                 "title": passage.get("title", ""),
                 "_id": _id,
                 "source": passage.get("source", ""),
-                "pid": passage.get("pid", -1),
+                "pid": passage.get("pid", "-1"),
             }
             for filter in self.field_types.keys():
                 v = getattr(passage, filter).strip()
