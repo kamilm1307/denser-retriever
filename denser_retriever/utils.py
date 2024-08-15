@@ -310,7 +310,7 @@ def texts_to_passages(texts: List[Document]):
             "source": d.metadata["source"],
             "title": d.metadata.get("title", ""),
             "text": d.page_content,
-            "pid": i,
+            "pid": str(i),
         }
         passages.append(data)
     return passages

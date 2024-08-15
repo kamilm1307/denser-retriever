@@ -152,9 +152,9 @@ class RetrieverGeneral(Retriever):
 
         # Combine both passages
         for passage in passages_keyword + passages_vector:
-            if passage["source"] not in seen_ids:
+            if passage["id"] not in seen_ids:
                 combined_passages.append(passage)
-                seen_ids.add(passage["source"])
+                seen_ids.add(passage["id"])
 
         uid_to_passages_1, uid_to_scores_1, uid_to_ranks_1 = build_dicts(
             passages_keyword

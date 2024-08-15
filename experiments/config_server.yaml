@@ -13,7 +13,7 @@ keyword:
   es_passwd: YOUR_ES_PASSWORD
   es_host: http://00.00.00.00:9200
   es_ingest_passage_bs: 5000
-  topk: 100
+  topk: 50
 
 vector:
   milvus_host: 00.00.00.00
@@ -24,12 +24,12 @@ vector:
   emb_dims: 768
   one_model: false
   vector_ingest_passage_bs: 2000 # 1000
-  topk: 100
+  topk: 50
 
 rerank:
   rerank_model: cross-encoder/ms-marco-MiniLM-L-6-v2
   rerank_bs: 100
-  topk: 100
+  topk: 50
 
 output_prefix: /home/ubuntu/denser_output_retriever/
 

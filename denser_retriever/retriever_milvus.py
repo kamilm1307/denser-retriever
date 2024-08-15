@@ -299,7 +299,7 @@ class RetrieverMilvus(Retriever):
                 try:
                     self.col.insert(record)
                 except Exception as e:
-                    logger.error(f"Milvus index insert error at record {passage["pid"]} - {e}")
+                    logger.error(f'Milvus index insert error at record {passage["pid"]} - {e}')
                     failed_batches.append(
                         {
                             "sources": sources,
